@@ -1,0 +1,2 @@
+throttle 0 0.6
+tick 10
