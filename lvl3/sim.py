@@ -2,11 +2,44 @@ import math
 import select
 import socket
 
-pi = math.pi
 
-G = 9.80665
+class Drone:
+    def __init__(self, id, x, y, z):
+        self.id = id
+        self.x = x
+        self.y = y
+        self.z = z
+        self.dx = 0
+        self.dy = 0
+        self.dz = 0
+        self.vx = 0
+        self.vy = 0
+        self.vz = 1
+        self.target = [10, 10]
 
+    def stop(self):
+        x = 0
+
+    def setSpeed(self, speed):
+        sendThrottle(self.id, thrustToThrottle(-1.0 * float(self.dz) + speed))
+
+    def setDir(self, x, y, z):
+        s.send("TURN " + self.id + " " + x + " " + y + " " + z + "\n")
+
+    def flyTo(self, target):
+        updatePos(self)
+        print("ok", i, self.x, self.y, self.z)
+        if self.z < 20:
+            self.setDir(0, 1, 0)
+            self.setSpeed(13)
+            # elif:  TODO
+
+
+drones = []
 time = 0
+
+pi = math.pi
+G = 9.80665
 
 def throttleToThrust(x):
     P = 0.015 * ((x * 10.0) ** 3.2)
@@ -19,6 +52,10 @@ def thrustToThrottle(x):
         return 0
     P = ((((((float(x) + G) / 8.0) ** 3.0) / (pi / 2.0)) / (0.25 ** 2.0)) / 1.225) ** (1 / 2.0)
     return ((P / 0.015) ** (1.0 / 3.2)) / 10.0
+
+
+def calcForce(drone):
+    return (drone.dx ** 2 + drone.dy ** 2 + drone.dz ** 2) ** 0.5
 
 
 def sendThrottle(id, x):
@@ -50,10 +87,28 @@ def printData():
     print(getData())
 
 
-def updatePos(x):
-    global curPos
-    s.send("STATUS " + str(x) + "\n")
-    curPos[x] = getData().split()
+def createDrones():
+    for i in range(nrOfDrones):
+        s.send("STATUS " + str(i) + "\n")
+        drones.append(drone)
+
+
+def updatePos(drone):
+    s.send("STATUS " + str(drone.id) + "\n")
+    curPos = getData().strip().split()
+    drone.x = curPos[0]
+    drone.y = curPos[1]
+    drone.z = curPos[2]
+    drone.dx = curPos[3]
+    drone.dy = curPos[4]
+    drone.dz = curPos[5]
+    drone.vx = curPos[6]
+    drone.vy = curPos[7]
+    drone.vz = curPos[8]
+
+
+
+
 
 
 # def flyTo(drone, x, y, z):
@@ -70,47 +125,38 @@ s.connect((TCP_IP, TCP_PORT))
 # area = data.split()
 # print("Area:", area)
 # data = getData().split("\r\n")
-
 nrOfDrones = int(float(getData()))
-coords = getData()
 print("amount: ", nrOfDrones)
 
-curPos = []  # x y z vx vy vz rx ry r
-for i in range(nrOfDrones):
-    curPos.append([])
+# curPos = []  # x y z vx vy vz rx ry r
+createDrones()
 
+target = []
+for i in range(nrOfDrones):
+    drones[i].target = (getData().strip().split(" "))
+
+print("target", target)
 printData()
-for i in range(nrOfDrones):
-    updatePos(i)
-    print("curpos", i, curPos[i])
-
-print("all", curPos)
+for drone in drones:
+    updatePos(drone)
 
 # print("thrott to thrust", throttleToThrust(0))
 # print("thrust to throttle", thrustToThrottle(0))
 
-timeInAir = 0
-timeLength = 1
+dTime = 0.1
 
-while timeInAir < 10:
+while True:
+    tick(dTime)
+    for drone in drones:
+        drone.flyTo(target[drone.id])
 
-    if 20 < float(curPos[0][2]) < 40:
-        timeInAir += timeLength
-
-    for i in range(nrOfDrones):
-        updatePos(i)
-        print("ok", i, curPos)
-        if float(curPos[i][2]) > 20:
-            sendThrottle(i, thrustToThrottle(-1.0 * float(curPos[i][5])))
-        else:
-            sendThrottle(i, thrustToThrottle(-1.0 * float(curPos[i][5]) + 10))
-
-    tick(timeLength)
-
+# landing
+'''
 while float(curPos[0][2]) > 0.3:
     for i in range(nrOfDrones):
         updatePos(i)
-        print("l", i, curPos[i])
+        print("curPos", i, curPos[i])
+
         if float(curPos[i][2]) > 5:
             sendThrottle(i, thrustToThrottle(-1.0 * float(curPos[i][5]) - 2))
         elif float(curPos[i][2]) > 0.3:
@@ -120,9 +166,8 @@ while float(curPos[0][2]) > 0.3:
             s.send("LAND " + str(i) + "\n")
             printData()
 
-    tick(timeLength)
+    tick(dTime)
 tick(1)
-'''
 
 t = 0.5
 while float(float(curPos[5]) <= 0):
