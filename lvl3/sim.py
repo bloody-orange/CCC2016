@@ -18,20 +18,32 @@ class Drone:
         self.target = [10, 10]
 
     def stop(self):
-        x = 0
+        self.setDir(-self.vx, -self.vy, -self.vz)
+        print("stop", calcForce(self))
+        self.setSpeed(calcForce(self))
 
     def setSpeed(self, speed):
-        sendThrottle(self.id, thrustToThrottle(-1.0 * float(self.dz) + speed))
+        # sendThrottle(self.id, thrustToThrottle(-1.0 * float(calcForce(self)) + speed))
+        print "speed", speed
+        thr = str(self.id) + " " + str(thrustToThrottle(-1.0 * float(calcForce(self)) + speed))
+        print("THROTTLE " + thr)
+        s.send("THROTTLE " + thr + "\n")
+        printData()
 
     def setDir(self, x, y, z):
-        s.send("TURN " + self.id + " " + x + " " + y + " " + z + "\n")
+        print("TURN " + str(self.id) + " " + str(x) + " " + str(y) + " " + str(z) + "\n")
+        s.send("TURN " + str(self.id) + " " + str(x) + " " + str(y) + " " + str(z) + "\n")
+        printData()
 
     def flyTo(self, target):
         updatePos(self)
         print("ok", i, self.x, self.y, self.z)
-        if self.z < 20:
-            self.setDir(0, 1, 0)
+        if self.z < 20.0:
+            self.setDir(0, 0, 1)
             self.setSpeed(13)
+        else:
+            print("hwaaaat", self.z)
+            self.stop()
             # elif:  TODO
 
 
@@ -84,27 +96,33 @@ def getData():
 
 
 def printData():
-    print(getData())
+    # print("data:")
+    data = getData()
+    print(data)
+    # print("end data")
+    return data
 
 
 def createDrones():
     for i in range(nrOfDrones):
         s.send("STATUS " + str(i) + "\n")
-        drones.append(drone)
+        data = printData().strip().split(" ")
+        drones.append(Drone(i, float(data[1]), float(data[2]), float(data[3])))
 
 
 def updatePos(drone):
+    print("STATUS " + str(drone.id) + "\n")
     s.send("STATUS " + str(drone.id) + "\n")
-    curPos = getData().strip().split()
-    drone.x = curPos[0]
-    drone.y = curPos[1]
-    drone.z = curPos[2]
-    drone.dx = curPos[3]
-    drone.dy = curPos[4]
-    drone.dz = curPos[5]
-    drone.vx = curPos[6]
-    drone.vy = curPos[7]
-    drone.vz = curPos[8]
+    curPos = printData().strip().split()
+    drone.x = float(curPos[0])
+    drone.y = float(curPos[1])
+    drone.z = float(curPos[2])
+    drone.dx = float(curPos[3])
+    drone.dy = float(curPos[4])
+    drone.dz = float(curPos[5])
+    drone.vx = float(curPos[6])
+    drone.vy = float(curPos[7])
+    drone.vz = float(curPos[8])
 
 
 
@@ -125,18 +143,19 @@ s.connect((TCP_IP, TCP_PORT))
 # area = data.split()
 # print("Area:", area)
 # data = getData().split("\r\n")
-nrOfDrones = int(float(getData()))
+
+
+nrOfDrones = int(float(printData()))
 print("amount: ", nrOfDrones)
 
+targetString = getData()
 # curPos = []  # x y z vx vy vz rx ry r
 createDrones()
 
-target = []
 for i in range(nrOfDrones):
-    drones[i].target = (getData().strip().split(" "))
+    drones[i].target = (targetString.strip().split(" "))
 
-print("target", target)
-printData()
+#printData()
 for drone in drones:
     updatePos(drone)
 
@@ -145,10 +164,11 @@ for drone in drones:
 
 dTime = 0.1
 
-while True:
+for i in range(50):
     tick(dTime)
     for drone in drones:
-        drone.flyTo(target[drone.id])
+        print drone.target
+        drone.flyTo(drone.target)
 
 # landing
 '''
