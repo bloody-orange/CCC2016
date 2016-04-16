@@ -19,8 +19,11 @@ class Drone:
         self.landed = False
         self.target = [10, 10]
 
-    def stop(self):
-        self.setDir(-self.dx / calcForce(self), -self.dy / calcForce(self), -self.dz / calcForce(self))
+    def stop(self, final=False):
+        if final:
+            self.setDir(-self.dx / calcForce(self), -self.dy / calcForce(self), 1 / calcForce(self))
+        else:
+            self.setDir(-self.dx / calcForce(self), -self.dy / calcForce(self), -self.dz / calcForce(self))
         print("stop", calcForce(self))
         speed = (calcForce(self) * math.floor(1 / dTime))
         print "speed", speed + -1.0 * float(calcForce(self))
@@ -32,7 +35,6 @@ class Drone:
     def land(self):
         force = calcForce(self)
         if force > 0:
-            print "force ", force
             self.setDir(-self.dx / force, -self.dy / force, 1)
         if float(drone.z) > 3:
             sendThrottle(self.id, thrustToThrottle(-1.0 * float(self.dz) - 2))
@@ -40,9 +42,12 @@ class Drone:
             sendThrottle(self.id, thrustToThrottle(-1.0 * float(self.dz) - 0.2))
         else:
             sendThrottle(self.id, 0)
+            self.setDir(0, 0, 1)
             print "LAND", self.id
             s.send("LAND " + str(self.id) + "\n")
             printData()
+            print "Drone", self.id, "landed at", self.x, self.y, self.z
+            print "Target is at", self.target
             self.landed = True
 
     def setNormSpeed(self):
@@ -73,31 +78,29 @@ class Drone:
     def flyTo(self):
         updatePos(self)
         print("curPos", self.x, self.y, self.z)
-        if self.z < self.height and (abs(self.x - self.target[0]) > 2 or abs(self.y - self.target[1]) > 2):
-            print("< 20")
+        toofar = (abs(self.x - self.target[0]) > 1.5 or abs(self.y - self.target[1]) > 1.5)
+        if self.z < self.height and toofar:
+            print("< height")
             self.setDir(0, 0, 1)
             self.setSpeed(9)
-        elif (abs(self.x - self.target[0]) > 2 or abs(
-                    self.y - self.target[1]) > 2) and self.dx == 0 and self.dy == 0 and abs(self.dz) > 1:
+        elif toofar and self.dx == 0 and self.dy == 0 and abs(self.dz) > 1:
             print("stopping", self.z)
             self.stop()
-        elif (abs(self.x - self.target[0]) > 2 or abs(self.y - self.target[1]) > 2) and abs(self.dz) > 6:
-            print("dz>1")
-            self.stop()
-        elif (abs(self.x - self.target[0]) > 2 or abs(self.y - self.target[1]) > 2) and (
-                        drone.dx ** 2 + drone.dy ** 2) ** 0.5 < 6:
-            dir = normalizeVec([self.target[0] - self.x, self.target[1] - self.y,
-                                max(self.target[0] - self.x, self.target[1] - self.y) + 5])
+        # elif toofar and abs(self.dz) > 6:
+        #     print("too fast, dz>1")
+        #     self.stop()
+        elif toofar and (drone.dx ** 2 + drone.dy ** 2) ** 0.5 < 6:
+            dir = normalizeVec([self.target[0] - self.x, self.target[1] - self.y])
             print("purrfect", dir)
-            self.setDir(dir[0], dir[1], dir[2])
+            self.setDir(dir[0], dir[1], 1)
             self.setNormSpeed()
-        elif abs(self.x - self.target[0]) > 2 or abs(self.y - self.target[1]) > 2:
+        elif toofar:
             self.setDir(0, 0, 1)
             self.setNormSpeed()
             print("purrfect2")
         elif self.dx > 0.05 or self.dy > 0.05:
             print("final stop")
-            self.stop()
+            self.stop(True)
         else:
             self.land()
 
@@ -149,7 +152,7 @@ def normalizeVec(vec):
 
 def sendThrottle(id, x):
     thr = str(id) + " " + str(x)
-    print("THROTTLE " + thr)
+    print("STHROTTLE " + thr)
     s.send("THROTTLE " + thr + "\n")
     printData()
 
@@ -187,11 +190,11 @@ def createDrones():
         s.send("STATUS " + str(i) + "\n")
         data = printData().strip().split(" ")
         drones.append(Drone(i, float(data[1]), float(data[2]), float(data[3]), height))
-        height += 1
+        height += 2
 
 
 def updatePos(drone):
-    print("STATUS " + str(drone.id) + "\n")
+    print("STATUS " + str(drone.id))
     s.send("STATUS " + str(drone.id) + "\n")
     curPos = printData().strip().split()
     drone.x = float(curPos[0])
@@ -231,6 +234,7 @@ createDrones()
 
 for i in range(nrOfDrones):
     targets = (targetString.strip().split("\r\n"))
+    print targets
     drones[i].target[0] = float(targets[i].split()[0])
     drones[i].target[1] = float(targets[i].split()[1])
     print drones[i].target
@@ -246,8 +250,21 @@ dTime = 0.03
 
 while True:
     tick(dTime)
+    allLanded = True
     for drone in drones:
         if not drone.landed:
+            allLanded = False
             drone.flyTo()
 
-# landing
+    if allLanded:
+        break
+
+print("the end lol")
+tick(1)
+tick(1)
+tick(1)
+tick(1)
+tick(1)
+tick(1000000)
+updatePos(drones[0])
+updatePos(drones[1])
